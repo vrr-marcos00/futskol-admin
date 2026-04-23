@@ -1,0 +1,19 @@
+# Node
+node_modules/
+dist/
+.vite/
+
+# Java
+target/
+*.class
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Env
+.env
+.env.local
