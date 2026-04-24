@@ -23,8 +23,8 @@ export interface InjurySummary {
 export interface Player {
   id: string;
   name: string;
-  cpf: string;
-  phone: string;
+  cpf: string | null;
+  phone: string | null;
   type: PlayerType;
   active: boolean;
   notes?: string | null;

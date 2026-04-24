@@ -24,10 +24,10 @@ public class Player {
     @Column(nullable = false)
     private String name;
 
-    @Column(nullable = false, unique = true, length = 11)
+    @Column(unique = true, length = 11)
     private String cpf;
 
-    @Column(nullable = false)
+    @Column
     private String phone;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -48,9 +49,11 @@ public class PlayerService {
 
     @Transactional
     public PlayerResponse create(PlayerRequest req) {
-        validateCpf(req.cpf());
-        if (repository.existsByCpf(req.cpf())) {
-            throw new ConflictException("Já existe um jogador com esse CPF");
+        if (req.cpf() != null) {
+            validateCpf(req.cpf());
+            if (repository.existsByCpf(req.cpf())) {
+                throw new ConflictException("Já existe um jogador com esse CPF");
+            }
         }
         PlayerType type = playerTypeService.findEntity(req.playerTypeId());
 
@@ -67,16 +70,19 @@ public class PlayerService {
 
     @Transactional
     public PlayerResponse update(UUID id, PlayerRequest req) {
-        validateCpf(req.cpf());
         Player player = findEntity(id);
+        String newCpf = req.cpf();
 
-        if (!player.getCpf().equals(req.cpf())) {
-            repository.findByCpf(req.cpf()).ifPresent(existing -> {
-                if (!existing.getId().equals(id)) {
-                    throw new ConflictException("Já existe um jogador com esse CPF");
-                }
-            });
-            player.setCpf(req.cpf());
+        if (!Objects.equals(player.getCpf(), newCpf)) {
+            if (newCpf != null) {
+                validateCpf(newCpf);
+                repository.findByCpf(newCpf).ifPresent(existing -> {
+                    if (!existing.getId().equals(id)) {
+                        throw new ConflictException("Já existe um jogador com esse CPF");
+                    }
+                });
+            }
+            player.setCpf(newCpf);
         }
 
         if (!player.getPlayerType().getId().equals(req.playerTypeId())) {

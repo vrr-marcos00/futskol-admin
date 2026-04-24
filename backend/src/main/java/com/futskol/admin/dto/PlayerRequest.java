@@ -9,8 +9,8 @@ import java.util.UUID;
 
 public record PlayerRequest(
         @NotBlank @Size(max = 150) String name,
-        @NotBlank @Pattern(regexp = "\\d{11}", message = "CPF deve conter 11 dígitos numéricos") String cpf,
-        @NotBlank @Size(max = 20) String phone,
+        @Pattern(regexp = "\\d{11}", message = "CPF deve conter 11 dígitos numéricos") String cpf,
+        @Size(max = 20) String phone,
         @NotNull UUID playerTypeId,
         Boolean active,
         String notes

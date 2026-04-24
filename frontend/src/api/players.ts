@@ -3,8 +3,8 @@ import type { Player } from '@/types/domain';
 
 export interface PlayerPayload {
   name: string;
-  cpf: string;
-  phone: string;
+  cpf?: string | null;
+  phone?: string | null;
   playerTypeId: string;
   active?: boolean;
   notes?: string | null;

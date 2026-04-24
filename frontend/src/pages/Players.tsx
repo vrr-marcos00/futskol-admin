@@ -44,8 +44,14 @@ import { getApiErrorMessage } from '@/api/client';
 
 const schema = z.object({
   name: z.string().min(2, 'Informe o nome'),
-  cpf: z.string().regex(/^\d{11}$/, 'CPF deve ter 11 dígitos numéricos'),
-  phone: z.string().min(10, 'Telefone inválido'),
+  cpf: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().regex(/^\d{11}$/, 'CPF deve ter 11 dígitos numéricos').optional()
+  ),
+  phone: z.preprocess(
+    (val) => (val === '' ? undefined : val),
+    z.string().min(10, 'Telefone inválido').optional()
+  ),
   playerTypeId: z.string().min(1, 'Selecione um tipo'),
   active: z.boolean(),
   notes: z.string().optional(),
@@ -102,8 +108,8 @@ export function PlayersPage() {
     setEditing(player);
     form.reset({
       name: player.name,
-      cpf: player.cpf,
-      phone: player.phone,
+      cpf: player.cpf ?? '',
+      phone: player.phone ?? '',
       playerTypeId: player.type.id,
       active: player.active,
       notes: player.notes ?? '',
@@ -113,7 +119,7 @@ export function PlayersPage() {
 
   async function onSubmit(values: FormValues) {
     try {
-      const payload = { ...values, notes: values.notes || null };
+      const payload = { ...values, cpf: values.cpf || null, phone: values.phone || null, notes: values.notes || null };
       if (editing) {
         await playersApi.update(editing.id, payload);
         toast({ title: 'Jogador atualizado', variant: 'success' });
@@ -295,12 +301,12 @@ export function PlayersPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>CPF (somente números)</Label>
+                <Label>CPF (somente números, opcional)</Label>
                 <Input {...form.register('cpf')} maxLength={11} placeholder="12345678909" />
                 {form.formState.errors.cpf && <p className="text-xs text-destructive">{form.formState.errors.cpf.message}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label>Telefone</Label>
+                <Label>Telefone (opcional)</Label>
                 <Input {...form.register('phone')} placeholder="11987654321" />
                 {form.formState.errors.phone && <p className="text-xs text-destructive">{form.formState.errors.phone.message}</p>}
               </div>
