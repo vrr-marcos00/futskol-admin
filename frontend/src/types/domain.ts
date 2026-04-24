@@ -12,6 +12,7 @@ export interface PlayerType {
   monthlyFee: number;
   monthlyLimit: number | null;
   active: boolean;
+  generatesMonthlyPayment: boolean;
 }
 
 export interface InjurySummary {

@@ -1,6 +1,9 @@
 package com.futskol.admin.controller;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.futskol.admin.dto.AnnualPaymentRequest;
+import com.futskol.admin.dto.AnnualPaymentResult;
+import com.futskol.admin.dto.GenerateMonthlyResult;
 import com.futskol.admin.dto.PaymentRequest;
 import com.futskol.admin.dto.PaymentResponse;
 import com.futskol.admin.enums.PaymentStatus;
@@ -47,5 +50,19 @@ public class PaymentController {
     public ResponseEntity<PaymentResponse> update(@PathVariable UUID id,
                                                   @Valid @RequestBody PaymentRequest req) {
         return ResponseEntity.ok(service.update(id, req));
+    }
+
+    @PostMapping("/annual")
+    public ResponseEntity<AnnualPaymentResult> createAnnual(@Valid @RequestBody AnnualPaymentRequest req) {
+        return ResponseEntity.ok(service.createAnnual(req));
+    }
+
+    @PostMapping("/generate-monthly")
+    public ResponseEntity<GenerateMonthlyResult> generateMonthly(
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM")
+            @JsonFormat(pattern = "yyyy-MM") YearMonth yearMonth) {
+        YearMonth target = yearMonth != null ? yearMonth : YearMonth.now();
+        return ResponseEntity.ok(service.generateMonthly(target));
     }
 }

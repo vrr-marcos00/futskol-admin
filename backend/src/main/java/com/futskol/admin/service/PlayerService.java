@@ -102,6 +102,11 @@ public class PlayerService {
         player.setActive(false);
     }
 
+    @Transactional(readOnly = true)
+    public List<Player> findEligibleForMonthlyGeneration() {
+        return repository.findEligibleForMonthlyGeneration();
+    }
+
     private PlayerResponse withInjury(Player player) {
         Injury active = injuryRepository.findByPlayerIdAndEndDateIsNull(player.getId()).orElse(null);
         return PlayerResponse.from(player, active);

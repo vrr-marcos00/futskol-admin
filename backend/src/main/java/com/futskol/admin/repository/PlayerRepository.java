@@ -17,6 +17,9 @@ public interface PlayerRepository extends JpaRepository<Player, UUID> {
 
     List<Player> findAllByActiveTrueOrderByNameAsc();
 
+    @Query("SELECT p FROM Player p WHERE p.active = true AND p.playerType.generatesMonthlyPayment = true ORDER BY p.name ASC")
+    List<Player> findEligibleForMonthlyGeneration();
+
     @Query("""
             SELECT p FROM Player p
             WHERE (:active IS NULL OR p.active = :active)

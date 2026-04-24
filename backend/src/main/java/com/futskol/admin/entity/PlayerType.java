@@ -31,6 +31,9 @@ public class PlayerType {
     @Column(name = "monthly_limit")
     private Integer monthlyLimit;
 
+    @Column(name = "generates_monthly_payment", nullable = false)
+    private boolean generatesMonthlyPayment;
+
     @Column(nullable = false)
     private boolean active;
 

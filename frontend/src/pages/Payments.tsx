@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Pencil, Receipt, CheckCircle2 } from 'lucide-react';
+import { Plus, Pencil, Receipt, CheckCircle2, CalendarDays, Zap } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -41,6 +41,8 @@ import type { Payment, PaymentStatus, Player } from '@/types/domain';
 import { currentYearMonth, formatCurrency, formatDate, formatMonthLong } from '@/lib/format';
 import { useToast } from '@/components/ui/toaster';
 import { getApiErrorMessage } from '@/api/client';
+
+const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 const STATUS_LABEL: Record<PaymentStatus, string> = {
   PAGO: 'Pago',
@@ -92,6 +94,17 @@ export function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Payment | null>(null);
+  const [annualOpen, setAnnualOpen] = useState(false);
+  const [annualLoading, setAnnualLoading] = useState(false);
+  const [generateLoading, setGenerateLoading] = useState(false);
+  const [annualForm, setAnnualForm] = useState({
+    playerId: '',
+    year: new Date().getFullYear(),
+    months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    status: 'PAGO' as PaymentStatus,
+    paymentDate: new Date().toISOString().substring(0, 10),
+    amount: undefined as number | undefined,
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -167,6 +180,72 @@ export function PaymentsPage() {
     }
   }
 
+  async function handleGenerateMonthly() {
+    setGenerateLoading(true);
+    try {
+      const result = await paymentsApi.generateMonthly(month);
+      if (result.created === 0) {
+        toast({ title: 'Nenhuma mensalidade criada', description: `Todos os ${result.skipped} mensalistas/plantonistas já têm pagamento nesse mês.`, variant: 'default' });
+      } else {
+        toast({
+          title: `${result.created} mensalidade${result.created > 1 ? 's' : ''} criada${result.created > 1 ? 's' : ''}`,
+          description: result.skipped > 0 ? `${result.skipped} já existiam.` : undefined,
+          variant: 'success',
+        });
+      }
+      load();
+    } catch (err) {
+      toast({ title: 'Erro ao gerar mensalidades', description: getApiErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setGenerateLoading(false);
+    }
+  }
+
+  function openAnnual() {
+    const eligible = players.filter((p) => p.type.generatesMonthlyPayment);
+    setAnnualForm({
+      playerId: eligible[0]?.id ?? '',
+      year: new Date().getFullYear(),
+      months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      status: 'PAGO',
+      paymentDate: new Date().toISOString().substring(0, 10),
+      amount: eligible[0]?.type.monthlyFee,
+    });
+    setAnnualOpen(true);
+  }
+
+  async function handleAnnualSubmit() {
+    if (!annualForm.playerId) {
+      toast({ title: 'Selecione um jogador', variant: 'destructive' });
+      return;
+    }
+    if (annualForm.months.length === 0) {
+      toast({ title: 'Selecione ao menos um mês', variant: 'destructive' });
+      return;
+    }
+    setAnnualLoading(true);
+    try {
+      const result = await paymentsApi.createAnnual({
+        playerId: annualForm.playerId,
+        year: annualForm.year,
+        months: annualForm.months,
+        status: annualForm.status,
+        paymentDate: annualForm.status === 'PAGO' ? annualForm.paymentDate : null,
+        amount: annualForm.amount,
+      });
+      const msg = result.skipped.length > 0
+        ? `${result.created.length} criado(s). Ignorados (já existiam): ${result.skipped.join(', ')}`
+        : `${result.created.length} pagamento${result.created.length > 1 ? 's' : ''} criado${result.created.length > 1 ? 's' : ''}.`;
+      toast({ title: 'Pagamento anual registrado', description: msg, variant: 'success' });
+      setAnnualOpen(false);
+      load();
+    } catch (err) {
+      toast({ title: 'Erro ao registrar pagamento anual', description: getApiErrorMessage(err), variant: 'destructive' });
+    } finally {
+      setAnnualLoading(false);
+    }
+  }
+
   async function onSubmit(values: FormValues) {
     try {
       const payload = {
@@ -215,6 +294,12 @@ export function PaymentsPage() {
         actions={
           <>
             <MonthPicker value={month} onChange={setMonth} className="w-[200px]" />
+            <Button variant="outline" onClick={handleGenerateMonthly} disabled={generateLoading}>
+              <Zap className="h-4 w-4" /> {generateLoading ? 'Gerando...' : 'Gerar mensalidades'}
+            </Button>
+            <Button variant="outline" onClick={openAnnual}>
+              <CalendarDays className="h-4 w-4" /> Pgto. anual
+            </Button>
             <Button onClick={openCreate}>
               <Plus className="h-4 w-4" /> Novo pagamento
             </Button>
@@ -293,6 +378,147 @@ export function PaymentsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Dialog pagamento anual */}
+      <Dialog open={annualOpen} onOpenChange={setAnnualOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Pagamento anual</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Jogador</Label>
+              <Select
+                value={annualForm.playerId}
+                onValueChange={(v) => {
+                  const player = players.find((p) => p.id === v);
+                  setAnnualForm((f) => ({ ...f, playerId: v, amount: player?.type.monthlyFee }));
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {players
+                    .filter((p) => p.type.generatesMonthlyPayment)
+                    .map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.type.name})
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Ano</Label>
+                <Input
+                  type="number"
+                  min={2000}
+                  max={2100}
+                  value={annualForm.year}
+                  onChange={(e) => setAnnualForm((f) => ({ ...f, year: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Valor (R$)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={annualForm.amount ?? ''}
+                  onChange={(e) => setAnnualForm((f) => ({ ...f, amount: e.target.value ? Number(e.target.value) : undefined }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <Label>Meses</Label>
+                <button
+                  type="button"
+                  className="text-xs text-primary underline"
+                  onClick={() =>
+                    setAnnualForm((f) => ({
+                      ...f,
+                      months: f.months.length === 12 ? [] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+                    }))
+                  }
+                >
+                  {annualForm.months.length === 12 ? 'Desmarcar todos' : 'Selecionar todos'}
+                </button>
+              </div>
+              <div className="grid grid-cols-4 gap-2">
+                {MONTH_NAMES.map((name, i) => {
+                  const m = i + 1;
+                  const checked = annualForm.months.includes(m);
+                  return (
+                    <label
+                      key={m}
+                      className={`flex cursor-pointer items-center justify-center rounded border px-2 py-1 text-xs font-medium transition-colors ${
+                        checked ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-background text-foreground'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="sr-only"
+                        checked={checked}
+                        onChange={() =>
+                          setAnnualForm((f) => ({
+                            ...f,
+                            months: checked ? f.months.filter((x) => x !== m) : [...f.months, m].sort((a, b) => a - b),
+                          }))
+                        }
+                      />
+                      {name}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Status</Label>
+                <Select
+                  value={annualForm.status}
+                  onValueChange={(v) => setAnnualForm((f) => ({ ...f, status: v as PaymentStatus }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(STATUS_LABEL) as PaymentStatus[]).map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {STATUS_LABEL[s]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {annualForm.status === 'PAGO' && (
+                <div className="space-y-1.5">
+                  <Label>Data do pagamento</Label>
+                  <DatePicker
+                    value={annualForm.paymentDate}
+                    onChange={(v) => setAnnualForm((f) => ({ ...f, paymentDate: v || f.paymentDate }))}
+                    maxDate={todayIso()}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setAnnualOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAnnualSubmit} disabled={annualLoading}>
+              {annualLoading ? 'Registrando...' : `Registrar ${annualForm.months.length} mês(es)`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>

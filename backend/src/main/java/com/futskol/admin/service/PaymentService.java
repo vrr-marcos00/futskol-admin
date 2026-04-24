@@ -1,5 +1,8 @@
 package com.futskol.admin.service;
 
+import com.futskol.admin.dto.AnnualPaymentRequest;
+import com.futskol.admin.dto.AnnualPaymentResult;
+import com.futskol.admin.dto.GenerateMonthlyResult;
 import com.futskol.admin.dto.PaymentRequest;
 import com.futskol.admin.dto.PaymentResponse;
 import com.futskol.admin.entity.Injury;
@@ -18,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -115,6 +119,78 @@ public class PaymentService {
         if (paymentDate != null) return PaymentStatus.PAGO;
         LocalDate firstOfCurrent = YearMonth.now().atDay(1);
         return refMonth.isBefore(firstOfCurrent) ? PaymentStatus.ATRASADO : PaymentStatus.PENDENTE;
+    }
+
+    @Transactional
+    public AnnualPaymentResult createAnnual(AnnualPaymentRequest req) {
+        Player player = playerService.findEntity(req.playerId());
+        List<PaymentResponse> created = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
+
+        for (int m : req.months()) {
+            YearMonth ym = YearMonth.of(req.year(), m);
+            LocalDate refMonth = ym.atDay(1);
+
+            if (paymentRepository.findByPlayerIdAndReferenceMonth(player.getId(), refMonth).isPresent()) {
+                skipped.add(ym.toString());
+                continue;
+            }
+
+            PaymentStatus status;
+            LocalDate paymentDate = req.paymentDate();
+            if (req.status() != null) {
+                status = req.status();
+            } else if (paymentDate != null) {
+                status = PaymentStatus.PAGO;
+            } else {
+                // Pagamento anual sem data informada: marca como PAGO com data de hoje
+                status = PaymentStatus.PAGO;
+                paymentDate = LocalDate.now();
+            }
+
+            Payment payment = Payment.builder()
+                    .player(player)
+                    .referenceMonth(refMonth)
+                    .amount(Optional.ofNullable(req.amount()).orElse(player.getPlayerType().getMonthlyFee()))
+                    .status(status)
+                    .paymentDate(paymentDate)
+                    .build();
+
+            created.add(PaymentResponse.from(paymentRepository.save(payment)));
+        }
+
+        return new AnnualPaymentResult(created, skipped);
+    }
+
+    @Transactional
+    public GenerateMonthlyResult generateMonthly(YearMonth yearMonth) {
+        LocalDate refMonth = yearMonth.atDay(1);
+        List<Player> eligible = playerService.findEligibleForMonthlyGeneration();
+
+        int created = 0;
+        int skipped = 0;
+        List<String> createdPlayerNames = new ArrayList<>();
+
+        for (Player player : eligible) {
+            if (paymentRepository.findByPlayerIdAndReferenceMonth(player.getId(), refMonth).isPresent()) {
+                skipped++;
+                continue;
+            }
+
+            Payment payment = Payment.builder()
+                    .player(player)
+                    .referenceMonth(refMonth)
+                    .amount(player.getPlayerType().getMonthlyFee())
+                    .status(PaymentStatus.PENDENTE)
+                    .build();
+
+            paymentRepository.save(payment);
+            created++;
+            createdPlayerNames.add(player.getName());
+        }
+
+        log.info("generateMonthly {}: criados={}, ignorados={}", yearMonth, created, skipped);
+        return new GenerateMonthlyResult(created, skipped, createdPlayerNames);
     }
 
     /**

@@ -10,7 +10,8 @@ public record PlayerTypeResponse(
         String name,
         BigDecimal monthlyFee,
         Integer monthlyLimit,
-        boolean active
+        boolean active,
+        boolean generatesMonthlyPayment
 ) {
     public static PlayerTypeResponse from(PlayerType pt) {
         return new PlayerTypeResponse(
@@ -18,7 +19,8 @@ public record PlayerTypeResponse(
                 pt.getName(),
                 pt.getMonthlyFee(),
                 pt.getMonthlyLimit(),
-                pt.isActive()
+                pt.isActive(),
+                pt.isGeneratesMonthlyPayment()
         );
     }
 }
